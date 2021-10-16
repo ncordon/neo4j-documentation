@@ -47,6 +47,7 @@ import org.neo4j.exceptions.Neo4jException
 import org.neo4j.graphdb._
 import org.neo4j.graphdb.config.Setting
 import org.neo4j.internal.kernel.api.security.SecurityContext
+import org.neo4j.io.fs.EphemeralFileSystemAbstraction
 import org.neo4j.kernel.api.KernelTransaction.Type
 import org.neo4j.kernel.impl.api.index.IndexingService
 import org.neo4j.kernel.impl.api.index.sampling.IndexSamplingMode
@@ -55,6 +56,8 @@ import org.neo4j.kernel.impl.query.Neo4jTransactionalContextFactory
 import org.neo4j.kernel.impl.query.QuerySubscriber
 import org.neo4j.kernel.impl.query.QuerySubscriberAdapter
 import org.neo4j.kernel.impl.util.ValueUtils
+import org.neo4j.test.rule
+import org.neo4j.test.rule.TestDirectory
 import org.neo4j.values.virtual.VirtualValues
 import org.neo4j.visualization.asciidoc.AsciidocHelper
 import org.neo4j.visualization.graphviz.AsciiDocStyle
@@ -76,6 +79,9 @@ import scala.reflect.ClassTag
 trait DocumentationHelper extends GraphIcing with ExecutionEngineHelper {
   def generateConsole: Boolean
   def db: GraphDatabaseCypherService
+
+  val fs = new EphemeralFileSystemAbstraction()
+  val testDirectory: TestDirectory = TestDirectory.testDirectory(fs)
 
   def niceify(parent: Option[String], section: String, title: String): String =
     if (parent.isDefined) niceify(parent.get + " " + section + " " + title) else niceify(section + " " + title)
@@ -182,6 +188,7 @@ trait DocumentationHelper extends GraphIcing with ExecutionEngineHelper {
 
 }
 
+
 abstract class DocumentingTestBase extends JUnitSuite with DocumentationHelper with ResetStrategy {
 
   private val javaValues = new RuntimeJavaValueConverter(isGraphKernelResultValue)
@@ -231,7 +238,7 @@ abstract class DocumentingTestBase extends JUnitSuite with DocumentationHelper w
     val consoleData: String = "none"
 
     val keySet = nodeMap.keySet
-    val writer: PrintWriter = createWriter(title, dir)
+    val writer: PrintWriter = createWriter(title, testDirectory.homePath().toFile)
     prepareForTest(title, prepare)
 
     val query = db.withTx(tx => {
@@ -581,14 +588,15 @@ abstract class DocumentingTestBase extends JUnitSuite with DocumentationHelper w
 
   override def hardReset() {
     tearDown()
-    dbFolder = new File("target/example-db" + System.nanoTime())
+    testDirectory.prepareDirectory(this.getClass, "QueryPlanTest")
+    dbFolder = testDirectory.homePath().resolve("example-db" + System.nanoTime()).toFile
     managementService = newDatabaseManagementService(dbFolder)
-    val database: GraphDatabaseService = managementService.database(DEFAULT_DATABASE_NAME)
-    db = new GraphDatabaseCypherService(database)
-
-    engine = ExecutionEngineFactory.createCommunityEngineFromDb(database) // TODO: This should be Enterprise!
-
-    softReset()
+//    val database: GraphDatabaseService = managementService.database(DEFAULT_DATABASE_NAME)
+//    db = new GraphDatabaseCypherService(database)
+//
+//    engine = ExecutionEngineFactory.createCommunityEngineFromDb(database) // TODO: This should be Enterprise!
+//
+//    softReset()
   }
 
   override def softReset() {
